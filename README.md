@@ -21,11 +21,6 @@ With a degree in **Systems Analysis and Development**, I am focused on building 
 - Strong storytelling and data visualization skills to turn information into easy-to-understand, actionable insights.  
 - A collaborative approach and eagerness to learn, always striving to grow and adapt to new challenges in the field of data analysis.  
 
-## **📂 Projects**
-### (ETLProjectAPIExtract)[https://github.com/glauberbandeira/ETLProjectAPIExtract]
-
-### (Project Python)[https://github.com/glauberbandeira/Project]
-
 
 ## **📫 Contact Me**
 - **LinkedIn:** [Your LinkedIn Profile](#)
