@@ -1,0 +1,248 @@
+# Mall Customer Segmentation (K-Means)
+
+This repository contains a complete **customer segmentation** project for a shopping mall using **K-Means** (unsupervised learning). The goal is to identify shopper groups from **Age**, **Annual Income (k$)**, and **Spending Score (1–100)**, generate actionable marketing insights, and document the process.
+
+---
+
+## 1) Overview
+
+This project performs customer segmentation with K-Means to uncover natural groups among mall shoppers. It covers EDA, univariate/bivariate/multivariate clustering, cluster profiling (gender split and means), centroid visualizations, and a business interpretation section.
+
+Main highlights:
+
+- Exploratory Data Analysis (EDA) and quick data checks.
+- Univariate elbow (Income), bivariate elbow (Income × Spending), and multivariate elbow.
+- K-Means clustering and plotting with centroids overlaid.
+- Cluster profiling: size, gender share, and mean Age/Income/Spending.
+- Business interpretation: target segments and campaign hypotheses.
+- Reproducibility and export of figures/tables for presentation.
+
+---
+
+## 2) Repository Structure
+
+```
+.
+├─ data/
+│  └─ Mall_Customers.csv                 # dataset (do not version sensitive data)
+├─ notebooks/
+│  ├─ 01_eda.ipynb                       # EDA, univariate & bivariate exploration
+│  ├─ 02_kmeans_bivariate.ipynb          # K-Means on Income × Spending
+│  ├─ 03_kmeans_multivariate.ipynb       # Multivariate K-Means + scaling
+│  └─ 99_export_figures.ipynb            # examples for exporting figures
+├─ reports/
+│  ├─ figures/                           # images for README/article/slides
+│  └─ tables/                            # CSVs with results (cluster profiles)
+├─ src/
+│  ├─ utils.py                           # helper functions (plots, elbow, profiling)
+│  └─ preprocessing.py                   # cleaning, one-hot, scaling
+├─ requirements.txt
+├─ README.md
+└─ LICENSE
+```
+
+Feel free to adapt notebook names to your workflow.
+
+---
+
+## 3) Dataset
+
+- **File**: `data/Mall_Customers.csv`
+- **Columns**: `CustomerID`, `Gender`, `Age`, `Annual Income (k$)`, `Spending Score (1-100)`
+- **Notes**:
+  - Drop `CustomerID` before training K-Means (non-informative).
+  - Encode `Gender` for multivariate work (one-hot with `drop_first=True`).
+  - Standardize features for multivariate K-Means (e.g., `StandardScaler`).
+
+---
+
+## 4) Environment Setup
+
+### Using venv (pip)
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### Using Conda
+
+```bash
+conda create -n mall-seg python=3.11 -y
+conda activate mall-seg
+pip install -r requirements.txt
+```
+
+**Minimal requirements.txt**
+
+```
+pandas>=2.0
+numpy>=1.25
+matplotlib>=3.7
+seaborn>=0.13
+scikit-learn>=1.3
+jupyterlab>=4.0
+```
+
+---
+
+## 5) How to Run
+
+1. Place `Mall_Customers.csv` in `data/`.
+2. Start Jupyter:
+   ```bash
+   jupyter lab
+   ```
+3. Open and run, in order:
+   - `notebooks/01_eda.ipynb`
+   - `notebooks/02_kmeans_bivariate.ipynb`
+   - `notebooks/03_kmeans_multivariate.ipynb`
+
+Figures will be saved in `reports/figures/` and tables in `reports/tables/`.
+
+---
+
+## 6) Key Steps (Code Snippets)
+
+### Basic EDA
+
+```python
+import pandas as pd, seaborn as sns, matplotlib.pyplot as plt
+
+df = pd.read_csv("data/Mall_Customers.csv")
+df.info(); df.describe(numeric_only=True)
+sns.histplot(df["Annual Income (k$)"], kde=True); plt.show()
+```
+
+### Elbow (Univariate: Income)
+
+```python
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+
+ks = range(1, 12)
+inertia = []
+X = df[["Annual Income (k$)"]]  # DataFrame, not Series
+
+for k in ks:
+    km = KMeans(n_clusters=k, n_init='auto', random_state=42).fit(X)
+    inertia.append(km.inertia_)
+
+plt.plot(ks, inertia, marker="o"); plt.xticks(ks)
+plt.xlabel("k"); plt.ylabel("Inertia"); plt.title("Elbow – Income"); plt.show()
+```
+
+### Bivariate (Income × Spending) with Centroids
+
+```python
+feat2 = df[["Annual Income (k$)", "Spending Score (1-100)"]]
+km2 = KMeans(n_clusters=5, n_init='auto', random_state=42).fit(feat2)
+df["income_spending_cluster"] = km2.labels_
+
+centers = pd.DataFrame(km2.cluster_centers_, columns=feat2.columns)
+
+plt.figure(figsize=(10,8))
+sns.scatterplot(
+    data=df, x="Annual Income (k$)", y="Spending Score (1-100)",
+    hue="income_spending_cluster", palette="tab10", alpha=0.9
+)
+plt.scatter(centers.iloc[:,0], centers.iloc[:,1], s=120, c="black", marker="*", label="Centroids")
+plt.legend(); plt.show()
+```
+
+### Multivariate with Standardization
+
+```python
+from sklearn.preprocessing import StandardScaler
+
+# clean and encode
+dff = df.drop(columns=[c for c in df.columns if c.lower() in {"customerid"} or "cluster" in c.lower()])
+dff = pd.get_dummies(dff, columns=["Gender"], drop_first=True)
+
+# scale
+X = pd.DataFrame(StandardScaler().fit_transform(dff), columns=dff.columns)
+
+# multivariate elbow
+inertia_m = []
+ks = range(1, 12)
+for k in ks:
+    km = KMeans(n_clusters=k, n_init='auto', random_state=42).fit(X)
+    inertia_m.append(km.inertia_)
+```
+
+### Cluster Profile (Example)
+
+```python
+ct = pd.crosstab(df["income_spending_cluster"], df["Gender"], normalize="index").add_suffix("_pct")
+means = df.groupby("income_spending_cluster")[["Age","Annual Income (k$)","Spending Score (1-100)"]].mean()
+size = df["income_spending_cluster"].value_counts().sort_index().rename("size")
+profile = size.to_frame().join(ct).join(means).round(3)
+profile.to_csv("reports/tables/cluster_profile.csv", index=True)
+```
+
+---
+
+## 7) Results
+
+Typical outcome in the bivariate case: around **5 clusters** with clear separation; the **high-income/high-spend** cluster is the primary target. Gender shares and mean profiles guide channel selection, creatives, and offer design.
+
+Suggested figures to include:
+
+- `reports/figures/scatter_income_spend_centroids.png`
+- `reports/figures/elbow_bivariate.png`
+- `reports/figures/heatmap_corr.png`
+
+---
+
+## 8) Reproducibility & Export
+
+- Fix the seed (`random_state=42`) for consistent results.
+- Save figures from notebooks:
+  ```python
+  plt.savefig("reports/figures/elbow_bivariate.png", dpi=180, bbox_inches="tight")
+  ```
+- Export tables:
+  ```python
+  profile.to_csv("reports/tables/cluster_profile.csv", index=True)
+  df.to_csv("reports/tables/clusters_output.csv", index=False)
+  ```
+
+---
+
+## 9) Business Notes
+
+Use cluster labels to run A/B tests by segment. Track incremental revenue, AOV, frequency, margin, CTR/CR, reactivation, and LTV. Prioritize the **high income/high spending** cluster; test **event-driven promotions** for **low income/high spending** groups.
+
+---
+
+## 10) Contributing
+
+Pull requests are welcome. For major changes:
+
+1. Open an issue describing the proposal.
+2. Create a branch: `feat/your-feature-name`.
+3. Add tests and/or example notebooks when applicable.
+
+---
+
+## 11) License
+
+Choose a license that fits your needs (e.g., MIT). Include a `LICENSE` file at the repository root.
+
+---
+
+## 12) Article
+
+A bilingual article (EN/PT) accompanies the project and documents modeling choices and marketing recommendations. If you want to keep it in-repo, add `reports/article.md` and point its images to `reports/figures/`.
+
+---
+
+## 13) Acknowledgements
+
+- Public “Mall Customers” dataset variants commonly used for study/portfolios.
+- The open-source community behind `pandas`, `scikit-learn`, `matplotlib`, and `seaborn`.
